@@ -18,3 +18,52 @@ It serves as:
 ---
 
 ## 🗂 Repo structure
+
+piedmont-geoai-discharge/
+├─ README.md
+├─ LICENSE
+├─ requirements.txt
+├─ .gitignore
+├─ data/ # (not in repo, see below)
+│ ├─ discharge_monthly.csv
+│ └─ RS_monthly_plus.csv
+├─ src/ # Python scripts
+│ ├─ train_rf.py
+│ ├─ train_xgb.py
+│ ├─ tune_xgb.py
+│ └─ train_xgb_plus.py
+├─ gee/
+│ └─ rs_monthly_plus.js # Earth Engine export script
+└─ outputs/ # results (kept as examples)
+├─ model_report.txt
+├─ station_skill.csv
+├─ obs_vs_pred.png
+└─ feature_importance.png
+
+## 📊 Results
+
+### Example discharge fit
+![Observed vs Predicted discharge](outputs/obs_vs_pred.png)
+
+### Feature importance
+![Feature importance](outputs/feature_importance.png)
+
+---
+
+## 🧑‍💻 Quick start
+
+```bash
+# 1) create environment
+python -m venv .venv
+source .venv/bin/activate   # (Windows: .venv\Scripts\activate)
+
+# 2) install requirements
+pip install -r requirements.txt
+
+# 3) add your data
+#   data/discharge_monthly.csv
+#   data/RS_monthly_plus.csv
+
+# 4) train model
+python src/train_xgb_plus.py
+
