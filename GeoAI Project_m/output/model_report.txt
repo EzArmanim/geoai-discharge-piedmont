@@ -1,0 +1,3 @@
+XGB + ET/SM/T2m — test R2 = 0.686
+XGB + ET/SM/T2m — test RMSE = 29.465
+XGB + ET/SM/T2m — test NSE = 0.686

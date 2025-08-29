@@ -1,0 +1,117 @@
+// ========= SETTINGS (edit assetPath only) =========
+var assetPath = 'users/YOUR_USERNAME/stations_piedmont';  // <-- change this
+var start = ee.Date('2010-01-01');
+var end   = ee.Date('2019-12-31');  // match discharge coverage
+var buffer_m = 5000;                 // 5 km buffer
+
+// ========= Stations (buffered from lon/lat columns) =========
+var table = ee.FeatureCollection(assetPath).map(function(f){
+  var lon = ee.Number.parse(f.get('lon'));
+  var lat = ee.Number.parse(f.get('lat'));
+  var pt  = ee.Geometry.Point([lon, lat]);
+  return ee.Feature(pt.buffer(buffer_m)).set('station_id', f.get('station_id'));
+});
+
+// ========= Collections =========
+// CHIRPS daily precip (mm/day)
+var CHIRPS = ee.ImageCollection('UCSB-CHG/CHIRPS/DAILY');
+// MODIS NDVI 16-day (scale 0.0001)
+var MODIS_NDVI = ee.ImageCollection('MODIS/061/MOD13Q1').select('NDVI');
+// MODIS ET 8-day (scale 0.1), nominal 500 m
+var MODIS_ET   = ee.ImageCollection('MODIS/061/MOD16A2').select('ET');
+// ERA5-Land monthly (temp in K, soil moisture volumetric)
+var ERA5M      = ee.ImageCollection('ECMWF/ERA5_LAND/MONTHLY');
+
+// ========= Safe reducers (handle empty months) =========
+function safeSum(ic, s, e, bandName) {
+  var filtered = ic.filterDate(s, e);
+  var img = ee.Image(ee.Algorithms.If(
+    filtered.size().gt(0),
+    filtered.sum(),
+    ee.Image(0)
+  )).toFloat().rename(bandName);
+  return img;
+}
+
+function safeMean(ic, s, e, bandName) {
+  var filtered = ic.filterDate(s, e);
+  var img = ee.Image(ee.Algorithms.If(
+    filtered.size().gt(0),
+    filtered.mean(),
+    ee.Image(0)
+  )).toFloat().rename(bandName);
+  return img;
+}
+
+// ========= Month list =========
+var nMonths = end.difference(start, 'month').floor();
+var months = ee.List.sequence(0, nMonths.subtract(1));
+
+// ========= Build monthly features & reduce over stations =========
+var monthlyFC = ee.FeatureCollection(
+  months.map(function(m){
+    var s = start.advance(m, 'month');
+    var e = s.advance(1, 'month');
+
+    // Precip (mm): sum daily CHIRPS
+    var P_mm = safeSum(CHIRPS, s, e, 'P_mm');
+
+    // NDVI: monthly mean, then scale 0.0001
+    var NDVI_raw = safeMean(MODIS_NDVI, s, e, 'NDVI_raw');
+    var NDVI = NDVI_raw.multiply(0.0001).rename('NDVI');
+
+    // ET (mm): sum 8-day ET and apply scale 0.1
+    var ET_raw = safeSum(MODIS_ET, s, e, 'ET_raw');
+    var ET_mm = ET_raw.multiply(0.1).rename('ET_mm');
+
+    // Soil moisture (m3/m3): monthly mean top layer
+    var SM = safeMean(
+      ERA5M.select('volumetric_soil_water_layer_1'), s, e, 'SM'
+    );
+
+    // 2 m Temperature (°C): monthly mean (K→°C)
+    var T2m_K = safeMean(ERA5M.select('temperature_2m'), s, e, 'T2m_K');
+    var T2m_C = T2m_K.subtract(273.15).rename('T2m_C');
+
+    // Stack all variables
+    var stack = P_mm.addBands([NDVI, ET_mm, SM, T2m_C]).set({
+      date_str: s.format('YYYY-MM-01')
+    });
+
+    // Reduce over station buffers (single scale OK for mixed-res)
+    var reduced = stack.reduceRegions({
+      collection: table,
+      reducer: ee.Reducer.mean(),
+      scale: 5000
+    });
+
+    // Attach metadata
+    return reduced.map(function(f){
+      return f.set({
+        station_id: f.get('station_id'),
+        date_str: s.format('YYYY-MM-01')
+      });
+    });
+  })
+).flatten();
+
+// ========= Keep only needed fields =========
+var clean = monthlyFC.map(function(f){
+  return ee.Feature(null, {
+    station_id: f.get('station_id'),
+    date_str:   f.get('date_str'),
+    P_mm:       f.get('P_mm'),
+    NDVI:       f.get('NDVI'),
+    ET_mm:      f.get('ET_mm'),
+    SM:         f.get('SM'),
+    T2m_C:      f.get('T2m_C')
+  });
+});
+
+// ========= Export =========
+Export.table.toDrive({
+  collection: clean,
+  description: 'RS_monthly_with_ET_SM_T2m_SAFE',
+  fileNamePrefix: 'RS_monthly_plus',
+  fileFormat: 'CSV'
+});

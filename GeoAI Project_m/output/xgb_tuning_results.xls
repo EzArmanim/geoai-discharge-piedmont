@@ -1,0 +1,6 @@
+config,R2,RMSE,NSE
+"{'max_depth': 6, 'learning_rate': 0.05, 'subsample': 0.8, 'colsample_bytree': 0.8}",0.45618525769942486,38.30587246743466,0.45618525769942486
+"{'max_depth': 6, 'learning_rate': 0.03, 'subsample': 0.9, 'colsample_bytree': 0.9}",0.4552633945693354,38.338326367683365,0.4552633945693354
+"{'max_depth': 8, 'learning_rate': 0.05, 'subsample': 0.8, 'colsample_bytree': 0.8}",0.43816474816349316,38.9353750660816,0.43816474816349316
+"{'max_depth': 6, 'learning_rate': 0.1, 'subsample': 0.8, 'colsample_bytree': 0.8}",0.430072589762154,39.21476730757983,0.430072589762154
+"{'max_depth': 4, 'learning_rate': 0.05, 'subsample': 0.8, 'colsample_bytree': 0.8}",0.42697142288860035,39.321312940744086,0.42697142288860035
